@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <title>SolarSystem</title>
+  
+  <link rel="stylesheet" href="https://d10ajoocuyu32n.cloudfront.net/mobile/1.3.1/jquery.mobile.theme-1.3.1.min.css">
+  <link rel="stylesheet" href="https://codiqa.com/view/310ff621/themecss">
+  <link rel="stylesheet" href="https://d10ajoocuyu32n.cloudfront.net/mobile/1.3.1/jquery.mobile.structure-1.3.1.min.css">
+  
+  <!-- Extra Codiqa features -->
+  <link rel="stylesheet" href="codiqa.ext.css">
+  
+  <link rel="stylesheet" href="https://codiqa.com/view/310ff621/css">
+  
+  <!-- jQuery and jQuery Mobile -->
+  <script src="https://d10ajoocuyu32n.cloudfront.net/jquery-1.9.1.min.js"></script>
+  <script src="https://d10ajoocuyu32n.cloudfront.net/mobile/1.3.1/jquery.mobile-1.3.1.min.js"></script>
+
+  <!-- Extra Codiqa features -->
+  <script src="https://d10ajoocuyu32n.cloudfront.net/codiqa.ext.js"></script>
+   
+  <script src="https://codiqa.com/view/310ff621/js"></script>
+
+  <script type="text/javascript">
+
+	var BASE_URL = 'http://api.ss.solarvps.com';
+	
+	var DEBUG = 0;
+
+	var listObject = {
+	    itemID : null
+	}
+	
+	var apiKey;
+	
+	$(document).on('pageshow', '#page1', function(event){
+		var url;
+		
+		$('#podList').html("");
+		
+		apiKey = localStorage.getItem('api_key');
+		if (apiKey == null || apiKey.length === 0) 
+		{
+			alert("You must set an API key in the My Prefs tab.");
+		}
+		else
+		{
+			var url = BASE_URL + '/pods?api_key=' + apiKey + '&callback=?';
+			$('#api_key').val(apiKey);
+			
+			$.mobile.showPageLoadingMsg();
+			$.getJSON(url, null, function(data) {	
+				
+				if (data['error'])
+				{
+					alert(data['error']);
+					return;
+				}
+						
+				$.each(data['pods'], function(key, val) {
+					
+					if (val['os'].indexOf("Windows") !== -1)
+					{
+						$('#podList').append('<li data-theme="c"><a href="#page5" id="' + val['podId'] + '" >' + '<img src="images/windows.png" class="ui-li-icon ui-li-thumb">' + val['hostname'] + '</a></li>');
+					}
+					else
+					{
+						$('#podList').append('<li data-theme="c"><a href="#page5" id="' + val['podId'] + '" >' + '<img src="images/linux.png" class="ui-li-icon ui-li-thumb">' + val['hostname'] + '</a></li>');
+					}
+					
+				 });
+				$("#podList").listview('refresh');
+				$.mobile.hidePageLoadingMsg();
+				
+				$('#podList li a').each(function(){
+			        var elementID = $(this).attr('id');      
+			        $(document).on('click', '#'+elementID, function(event){  
+			            if(event.handled !== true) 
+			            {
+			                listObject.itemID = elementID; 
+			                $.mobile.changePage( "#page5", { transition: "slide"} );
+			                event.handled = true;
+			            }              
+			        });
+			    });
+			});
+		}
+		
+	});
+	
+	$(document).on('pagebeforeshow', '#page2', function(){       
+	
+		apiKey = localStorage.getItem('api_key');
+		
+		$('#srNotifications').html("");
+		
+		if (apiKey == null || apiKey.length === 0) 
+		{
+			alert("You must set an API key in the My Prefs tab.");
+		}
+		else
+		{
+			var url = BASE_URL + '/solarray/critical?api_key=' + apiKey + '&callback=?';
+			$.getJSON(url, null, function(data) {	
+				
+				if (typeof data['notifications'] !== 'undefined' && data['notifications'].length > 0) 
+				{
+					$('#srNotifications').html("<font color=red>There are critical notifications to report!</font><br><br>")
+					$.each(data['notifications'], function(key, val) {
+						$('#srNotifications').append(val['type'] + ' monitor failure: ' + val['hostname'] + ' (' + val['ip'] + ') was last up at ' + val['last_up_time'] + ' and last checked ' + val['last_checked_time'] + '.<br><br>');
+					 });
+				}
+				else
+				{
+					$('#srNotifications').html("There are no critical notifications to display.");
+				}
+				
+				if (DEBUG == 1)
+				{
+					json = JSON.stringify(data);
+					$('#srJson').html('<b>JSON response:</b> ' + json);
+				}
+				
+			});
+		}
+	});
+
+	$(document).on('pageinit', '#page3', function(event){
+		$('#saveApiKey').on("click", function() {
+			localStorage.setItem('api_key', $('#api_key').val());
+			alert("Your preferences have been saved.");
+		});
+	});
+	
+	$(document).on('pagebeforeshow', '#page5', function(){       
+		var podId = listObject.itemID;
+		
+		$('#os_value').html("");
+		$('#state_value').html("");
+		$('#podJson').html("");
+		$('#hostname_value').html("");
+		$('#mainIp_value').html("");
+		$('#page5 div h3').html("Please wait.. ");
+		
+		var url = BASE_URL + '/pods/' + podId + '?api_key=' + apiKey + '&callback=?';
+		$.getJSON(url, null, function(data) {	
+			json = JSON.stringify(data);
+			pod = data['pod'];
+		
+			$('#page5 div h3').html(pod['hostname']);
+		
+		
+			$('#hostname_value').html(pod['hostname']);
+			$('#mainIp_value').html(pod['mainIp']);
+			
+			if (pod['podState'] == 'online')
+			{
+				$('#state_value').html('<font color="green">' + pod['podState'] + '</font>');
+			}
+			else
+			{
+				$('#state_value').html('<font color="red">' + pod['podState'] + '</font>');
+			}
+			
+			
+			$('#os_value').html(pod['os']);
+			
+			if (DEBUG == 1)
+			{
+				$('#podJson').html('<b>JSON response:</b> ' + json);
+			}
+			
+		});
+	
+		$('#bootButton').unbind('click');
+		$("#bootButton").click(function (e) { 
+			var url = BASE_URL + '/pods/' + podId + '/boot' + '?api_key=' + apiKey + '&callback=?';
+		   
+			$.getJSON(url, null, function(data) {	
+				alert(data['message']);
+			});
+				
+		});
+		
+		$('#rebootButton').unbind('click');
+		$("#rebootButton").click(function (e) { 
+		    var url = BASE_URL + '/pods/' + podId + '/reboot' + '?api_key=' + apiKey + '&callback=?';
+		
+			$.getJSON(url, null, function(data) {
+				alert(data['message']);
+			});
+		});
+		
+		$('#shutdownButton').unbind('click');
+		$("#shutdownButton").click(function (e) { 
+		    var url = BASE_URL + '/pods/' + podId + '/shutdown' + '?api_key=' + apiKey + '&callback=?';
+		
+			$.getJSON(url, null, function(data) {
+				alert(data['message']);
+			});
+		});
+		
+		$('#pingButton').unbind('click');
+		$("#pingButton").click(function (e) { 
+		    var url = BASE_URL + '/pods/' + podId + '/ping' + '?api_key=' + apiKey + '&callback=?';
+		
+			$.getJSON(url, null, function(data) {
+				alert(data['ping']);
+			});
+		});
+		
+	});
+	
+	
+	</script>
+	
+
+  
+</head>
+<body>
+  <div data-role="page" data-control-title="Pods" id="page1">
+
+      <div data-theme="a" data-role="header">
+          <h3>
+              SolarSystem
+          </h3>
+      </div>
+      <div data-role="content">
+          <ul data-role="listview" data-divider-theme="b" data-inset="true" id="podList">
+              <li data-role="list-divider" role="heading">
+                  My Pods
+              </li>
+
+			  <!-- this is populated via ajax request to api -->
+			
+          </ul>
+      </div>
+      <div data-role="tabbar" data-iconpos="top" data-theme="a">
+          <ul>
+              <li>
+                  <a href="#page1" data-transition="fade" data-theme="" data-icon="home">
+                      My Pods
+                  </a>
+              </li>
+              <li>
+                  <a href="#page2" data-transition="fade" data-theme="" data-icon="alert">
+                      SolarRay
+                  </a>
+              </li>
+              <li>
+                  <a href="#page3" data-transition="fade" data-theme="" data-icon="gear">
+                      My Prefs
+                  </a>
+              </li>
+          </ul>
+      </div>
+  </div>
+  <div data-role="page" data-control-title="SolarRay" id="page2">
+      <div data-theme="a" data-role="header">
+          <h3>
+              SolarSystem
+          </h3>
+      </div>
+      <div data-role="content">
+        
+		 <div id="srNotifications"></div>
+		 <div id="srJson"></div>
+		
+      </div>
+      <div data-role="tabbar" data-iconpos="top" data-theme="a">
+          <ul>
+              <li>
+                  <a href="#page1" data-transition="fade" data-theme="" data-icon="home">
+                      My Pods
+                  </a>
+              </li>
+              <li>
+                  <a href="#page2" data-transition="fade" data-theme="" data-icon="alert">
+                      SolarRay
+                  </a>
+              </li>
+              <li>
+                  <a href="#page3" data-transition="fade" data-theme="" data-icon="gear">
+                      My Prefs
+                  </a>
+              </li>
+          </ul>
+      </div>
+  </div>
+  <div data-role="page" data-control-title="My Prefs" id="page3">
+	    
+  <div data-theme="a" data-role="header">
+          <h3>
+              SolarSystem
+          </h3>
+      </div>
+      <div data-role="content">
+          <div data-role="fieldcontain" data-controltype="textinput">
+              <label for="textinput1">
+                  API Key
+              </label>
+              <input name="" id="api_key" placeholder="" value="" type="text">
+          </div>
+          <input type="submit" data-icon="check" data-iconpos="left" value="Save" id="saveApiKey">
+      </div>
+      <div data-role="tabbar" data-iconpos="top" data-theme="a">
+          <ul>
+              <li>
+                  <a href="#page1" data-transition="fade" data-theme="" data-icon="home">
+                      My Pods
+                  </a>
+              </li>
+              <li>
+                  <a href="#page2" data-transition="fade" data-theme="" data-icon="alert">
+                      SolarRay
+                  </a>
+              </li>
+              <li>
+                  <a href="#page3" data-transition="fade" data-theme="" data-icon="gear">
+                      My Prefs
+                  </a>
+              </li>
+          </ul>
+      </div>
+  </div>
+  <div data-role="page" data-control-title="Actions" id="page5">
+      <div data-theme="a" data-role="header">
+          <h3>
+              SolarSystem
+          </h3>
+			<a data-role="button" data-direction="reverse" data-rel="back" href="#page2" data-icon="arrow-l" data-iconpos="left">
+			            Back
+			</a>
+      </div>
+      <div data-role="content">
+         
+		  <a data-role="button" href="#page5" style="background: #51a351; color: white;" id="bootButton">Boot</a>
+		  <a data-role="button" href="#page5" style="background: #bd362f; color: white;" id="shutdownButton">Shutdown</a>
+		  <a data-role="button" href="#page5" style="background: #2f96b4; color: white;" id="rebootButton">Reboot</a> 
+		  <a data-role="button" href="#page5" style="background: yellow; color: #000;" id="pingButton">Ping</a> 
+		  
+		  <br>
+		  <b>Hostname:</b> <div id="hostname_value"></div><br>
+		  <b>Main IP:</b> <div id="mainIp_value"></div><br>
+		  <b>State:</b> <div id="state_value"></div><br>
+		  <b>OS:</b> <div id="os_value"></div><br>
+		  	
+		<div id="podJson"></div>
+      </div>
+
+      <div data-role="tabbar" data-iconpos="top" data-theme="a">
+          <ul>
+              <li>
+                  <a href="#page1" data-transition="fade" data-theme="" data-icon="home">
+                      My Pods
+                  </a>
+              </li>
+              <li>
+                  <a href="#page2" data-transition="fade" data-theme="" data-icon="star">
+                      SolarRay
+                  </a>
+              </li>
+              <li>
+                  <a href="#page3" data-transition="fade" data-theme="" data-icon="info">
+                      My Prefs
+                  </a>
+              </li>
+          </ul>
+      </div>
+  </div>
+
+</body>
+</html>
